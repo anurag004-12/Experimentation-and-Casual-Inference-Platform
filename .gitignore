@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ipynb_checkpoints/
+*.egg-info/
+
+# Node / React
+node_modules/
+frontend/dist/
+frontend/build/
+
+# Secrets and env
+.env
+.env.*
+
+# Data and experiment artifacts (keep raw datasets out of git)
+data/
+*.csv
+*.parquet
+mlruns/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
