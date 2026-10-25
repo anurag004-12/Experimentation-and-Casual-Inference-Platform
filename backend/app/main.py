@@ -12,6 +12,8 @@ from typing import Literal
 
 from .bayesian import bayesian_ab_analytic, bayesian_ab_pymc
 
+from .causal import compare_methods
+
 app = FastAPI(title="Experimentation Platform", version="0.1.0")
 
 
@@ -71,6 +73,15 @@ class BayesianInput(BaseModel):
     prior_alpha: float = Field(1.0, gt=0)
     prior_beta: float = Field(1.0, gt=0)
     engine: Literal["analytic", "pymc"] = "analytic"
+
+class CausalCompareInput(BaseModel):
+    n: int = Field(5_000, ge=500, le=20_000)
+    true_effect: float = 2.0
+    confounding: float = Field(1.0, ge=0, le=5)
+    hidden_confounding: float = Field(0.0, ge=0, le=3)
+    seed: int = 0
+    use_dowhy: bool = False      # slower (a few seconds)
+    use_econml: bool = False     # slower (about 10 seconds)
 
 
 @app.get("/health")
@@ -136,3 +147,7 @@ def bayesian_ab(body: BayesianInput):
         return bayesian_ab_analytic(**args)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
+
+@app.post("/causal/compare")
+def causal_compare(body: CausalCompareInput):
+    return compare_methods(**body.model_dump())
