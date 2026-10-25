@@ -8,6 +8,10 @@ from .power import sample_size_means, sample_size_proportions
 
 from .sequential import compare_strategies, sequential_check
 
+from typing import Literal
+
+from .bayesian import bayesian_ab_analytic, bayesian_ab_pymc
+
 app = FastAPI(title="Experimentation Platform", version="0.1.0")
 
 
@@ -58,6 +62,15 @@ class PeekingDemoInput(BaseModel):
     users_per_look: int = Field(500, gt=0, le=100_000)
     n_sims: int = Field(5_000, ge=100, le=50_000)
     alpha: float = Field(0.05, gt=0, lt=1)
+
+class BayesianInput(BaseModel):
+    conv_a: int = Field(..., ge=0)
+    n_a: int = Field(..., gt=0)
+    conv_b: int = Field(..., ge=0)
+    n_b: int = Field(..., gt=0)
+    prior_alpha: float = Field(1.0, gt=0)
+    prior_beta: float = Field(1.0, gt=0)
+    engine: Literal["analytic", "pymc"] = "analytic"
 
 
 @app.get("/health")
@@ -112,3 +125,14 @@ def sequential_check_endpoint(body: SequentialCheckInput):
 @app.post("/sequential/peeking-demo")
 def peeking_demo(body: PeekingDemoInput):
     return compare_strategies(**body.model_dump())
+
+@app.post("/bayesian/ab")
+def bayesian_ab(body: BayesianInput):
+    args = body.model_dump()
+    engine = args.pop("engine")
+    try:
+        if engine == "pymc":
+            return bayesian_ab_pymc(**args)
+        return bayesian_ab_analytic(**args)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
