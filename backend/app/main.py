@@ -6,6 +6,8 @@ from pydantic import BaseModel, Field
 from .experiments import adjust_pvalues, compare_proportions, srm_check
 from .power import sample_size_means, sample_size_proportions
 
+from .sequential import compare_strategies, sequential_check
+
 app = FastAPI(title="Experimentation Platform", version="0.1.0")
 
 
@@ -40,6 +42,21 @@ class ProportionsInput(BaseModel):
 class AdjustInput(BaseModel):
     p_values: list[float] = Field(..., min_length=1)
     method: str = "benjamini-hochberg"
+    alpha: float = Field(0.05, gt=0, lt=1)
+
+class SequentialCheckInput(BaseModel):
+    mean_diff: float
+    n_per_group: int = Field(..., gt=0)
+    sd: float = Field(..., gt=0)
+    tau: float | None = Field(None, gt=0)
+    alpha: float = Field(0.05, gt=0, lt=1)
+
+
+class PeekingDemoInput(BaseModel):
+    true_effect: float = 0.0
+    n_looks: int = Field(10, ge=2, le=30)
+    users_per_look: int = Field(500, gt=0, le=100_000)
+    n_sims: int = Field(5_000, ge=100, le=50_000)
     alpha: float = Field(0.05, gt=0, lt=1)
 
 
@@ -83,3 +100,15 @@ def experiments_adjust(body: AdjustInput):
         return adjust_pvalues(**body.model_dump())
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
+
+@app.post("/sequential/check")
+def sequential_check_endpoint(body: SequentialCheckInput):
+    try:
+        return sequential_check(**body.model_dump())
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+
+@app.post("/sequential/peeking-demo")
+def peeking_demo(body: PeekingDemoInput):
+    return compare_strategies(**body.model_dump())
