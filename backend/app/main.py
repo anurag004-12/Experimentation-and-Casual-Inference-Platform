@@ -14,6 +14,8 @@ from .bayesian import bayesian_ab_analytic, bayesian_ab_pymc
 
 from .causal import compare_methods
 
+from .causal import compare_methods, compare_panel_methods
+
 app = FastAPI(title="Experimentation Platform", version="0.1.0")
 
 
@@ -83,6 +85,15 @@ class CausalCompareInput(BaseModel):
     use_dowhy: bool = False      # slower (a few seconds)
     use_econml: bool = False     # slower (about 10 seconds)
 
+class PanelCompareInput(BaseModel):
+    true_effect: float = -3.0
+    loading_spread: float = Field(1.0, ge=0, le=2)   # 0 = parallel trends holds
+    n_donors: int = Field(30, ge=5, le=60)
+    n_treated: int = Field(1, ge=1, le=10)
+    n_pre: int = Field(20, ge=6, le=40)
+    n_post: int = Field(10, ge=3, le=20)
+    seed: int = 0
+
 
 @app.get("/health")
 def health():
@@ -151,3 +162,7 @@ def bayesian_ab(body: BayesianInput):
 @app.post("/causal/compare")
 def causal_compare(body: CausalCompareInput):
     return compare_methods(**body.model_dump())
+
+@app.post("/causal/panel-compare")
+def causal_panel_compare(body: PanelCompareInput):
+    return compare_panel_methods(**body.model_dump())

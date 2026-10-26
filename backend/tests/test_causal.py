@@ -60,3 +60,53 @@ def test_compare_methods_reports_error_vs_truth():
     errors = {x["method"]: x["error_vs_truth"] for x in r["results"]}
     assert errors["naive difference"] > 2.0
     assert abs(errors["regression adjustment"]) < 0.3
+
+# ---------------- Part B: difference-in-differences and synthetic control ----------------
+import numpy as np
+
+from app.causal import (_fit_weights, compare_panel_methods, did_estimate,
+                        simulate_panel, synthetic_control)
+
+
+def test_did_works_when_parallel_trends_holds():
+    df = simulate_panel(true_effect=-3.0, loading_spread=0.0)
+    r = did_estimate(df)
+    assert r["effect"] == pytest.approx(-3.0, abs=0.5)
+    assert r["parallel_trends_ok"] is True
+
+
+def test_did_fails_and_warns_when_parallel_trends_is_violated():
+    r = did_estimate(simulate_panel(true_effect=-3.0, loading_spread=1.0))
+    assert abs(r["effect"] - (-3.0)) > 2.0          # badly wrong...
+    assert r["parallel_trends_ok"] is False         # ...and the pre-trend check says so
+
+
+def test_did_invents_an_effect_that_does_not_exist():
+    r = did_estimate(simulate_panel(true_effect=0.0, loading_spread=1.0))
+    assert abs(r["effect"]) > 2.0                   # no policy effect, yet DiD finds one
+
+
+def test_synthetic_control_survives_the_violation():
+    both = compare_panel_methods(true_effect=-3.0, loading_spread=1.0)
+    assert abs(both["synthetic_control"]["error_vs_truth"]) < 1.0
+    assert abs(both["synthetic_control"]["error_vs_truth"]) < abs(both["did"]["error_vs_truth"]) / 3
+
+
+def test_synthetic_control_does_not_invent_effects():
+    r = synthetic_control(simulate_panel(true_effect=0.0, loading_spread=1.0))
+    assert abs(r["effect"]) < 1.0
+    assert r["placebo_p_value"] > 0.2               # a gap this size is common by luck
+
+
+def test_synthetic_control_placebo_test_flags_a_real_effect():
+    r = synthetic_control(simulate_panel(true_effect=-3.0, loading_spread=0.0))
+    assert r["placebo_p_value"] < 0.1
+    assert r["pre_fit_rmspe"] < 1.5
+
+
+def test_synthetic_weights_are_valid():
+    df = simulate_panel()
+    wide = df.pivot(index="time", columns="unit", values="outcome")
+    pre = wide.index < 20
+    w = _fit_weights(wide[0].values[pre], wide.drop(columns=0).values[pre])
+    assert w.min() >= 0 and w.sum() == pytest.approx(1.0)

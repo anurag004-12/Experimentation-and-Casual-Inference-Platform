@@ -18,6 +18,10 @@ import statsmodels.api as sm
 from sklearn.linear_model import LogisticRegression
 from sklearn.neighbors import NearestNeighbors
 
+from scipy import stats
+from scipy.optimize import minimize
+
+
 COVARIATES = ["activity", "tenure"]
 
 
@@ -163,3 +167,139 @@ def compare_methods(n: int = 5_000, true_effect: float = 2.0, confounding: float
         r["error_vs_truth"] = r["effect"] - true_effect
     return {"true_effect": true_effect, "confounding": confounding,
             "hidden_confounding": hidden_confounding, "n": n, "results": results}
+
+
+# =====================================================================
+# Part B: panel data. A policy hit one place (or a few) and not others.
+# =====================================================================
+
+
+def simulate_panel(n_donors: int = 30, n_treated: int = 1, n_pre: int = 20, n_post: int = 10,
+                   true_effect: float = -3.0, loading_spread: float = 1.0,
+                   noise_sd: float = 1.0, seed: int = 0) -> pd.DataFrame:
+    """Simulate units (e.g. states) observed over time; the treated ones get a policy
+    at time n_pre with a KNOWN effect.
+
+        outcome = unit_level + unit_sensitivity * common_trend + effect * treated_after + noise
+
+    loading_spread = 0 -> every unit reacts to the common trend equally
+                     ("parallel trends" holds, so DiD is valid).
+    loading_spread > 0 -> units react differently, treated units more strongly than
+                     the average control ("parallel trends" is violated).
+    """
+    rng = np.random.default_rng(seed)
+    n_units = n_treated + n_donors
+    t = np.arange(n_pre + n_post)
+    common_trend = 0.5 * t + 3 * np.sin(t / 4)
+
+    level = rng.normal(50, 8, n_units)
+    sensitivity = 1 + loading_spread * rng.uniform(-0.8, 0.8, n_units)
+    level[:n_treated] = 52
+    sensitivity[:n_treated] = 1 + 0.5 * loading_spread       # treated react more than average
+
+    rows = []
+    for u in range(n_units):
+        is_treated = int(u < n_treated)
+        for time in t:
+            post = int(time >= n_pre)
+            y = (level[u] + sensitivity[u] * common_trend[time]
+                 + true_effect * is_treated * post + rng.normal(0, noise_sd))
+            rows.append((u, int(time), is_treated, post, y))
+    return pd.DataFrame(rows, columns=["unit", "time", "treated_group", "post", "outcome"])
+
+
+def did_estimate(df: pd.DataFrame) -> dict:
+    """Difference-in-differences.
+
+    effect = (treated change before->after) - (control change before->after)
+
+    Also runs the PRE-TREND CHECK: before the policy, was the gap between treated
+    and control flat? If the gap was already drifting, DiD's key assumption
+    ("parallel trends") is broken and the estimate can't be trusted.
+    """
+    wide = df.pivot(index="time", columns="unit", values="outcome")
+    treated_units = df.loc[df.treated_group == 1, "unit"].unique()
+    control_units = df.loc[df.treated_group == 0, "unit"].unique()
+    post_flag = df.groupby("time")["post"].first().values.astype(bool)
+
+    gap = wide[treated_units].mean(axis=1) - wide[control_units].mean(axis=1)
+    effect = float(gap[post_flag].mean() - gap[~post_flag].mean())
+
+    # Pre-trend test: slope of the gap over time, before the policy.
+    pre_t = gap.index.values[~post_flag]
+    slope = stats.linregress(pre_t, gap.values[~post_flag])
+    se = float(np.sqrt(gap[~post_flag].var(ddof=1) / (~post_flag).sum()
+                       + gap[post_flag].var(ddof=1) / post_flag.sum()))
+    return {"method": "difference-in-differences", "effect": effect,
+            "approx_ci_95": [effect - 1.96 * se, effect + 1.96 * se],
+            "pre_trend_slope": float(slope.slope), "pre_trend_p_value": float(slope.pvalue),
+            "parallel_trends_ok": bool(slope.pvalue > 0.05),
+            "gap_series": [float(x) for x in gap.values]}
+
+
+def _fit_weights(y_treated_pre: np.ndarray, donors_pre: np.ndarray) -> np.ndarray:
+    """Weights >= 0 that sum to 1 and make the donors' blend track the treated unit
+    as closely as possible BEFORE the policy."""
+    k = donors_pre.shape[1]
+    res = minimize(lambda w: np.mean((y_treated_pre - donors_pre @ w) ** 2),
+                   x0=np.full(k, 1 / k), method="SLSQP", bounds=[(0, 1)] * k,
+                   constraints=[{"type": "eq", "fun": lambda w: w.sum() - 1}],
+                   options={"maxiter": 300, "ftol": 1e-10})
+    w = np.clip(res.x, 0, None)
+    return w / w.sum()
+
+
+def _rmspe(a: np.ndarray) -> float:
+    return float(np.sqrt(np.mean(a ** 2)))
+
+
+def synthetic_control(df: pd.DataFrame, run_placebos: bool = True) -> dict:
+    """Synthetic control: build a 'fake twin' of the treated unit from a weighted
+    mix of untreated units, then read the effect as the gap after the policy.
+
+    Inference by placebo tests: pretend each untreated unit got the policy and see
+    how big a gap you get by luck. p-value = share of units with a gap-to-fit
+    ratio at least as extreme as the real one.
+    """
+    wide = df.pivot(index="time", columns="unit", values="outcome")
+    treated_units = df.loc[df.treated_group == 1, "unit"].unique()
+    donors = [u for u in wide.columns if u not in set(treated_units)]
+    post_flag = df.groupby("time")["post"].first().values.astype(bool)
+
+    y = wide[treated_units].mean(axis=1).values
+    D = wide[donors].values
+    w = _fit_weights(y[~post_flag], D[~post_flag])
+    synthetic = D @ w
+    gap = y - synthetic
+    pre_rmspe, post_rmspe = _rmspe(gap[~post_flag]), _rmspe(gap[post_flag])
+
+    out = {"method": "synthetic control", "effect": float(gap[post_flag].mean()),
+           "pre_fit_rmspe": pre_rmspe,
+           "top_donor_weights": {int(donors[i]): float(w[i])
+                                 for i in np.argsort(-w)[:5] if w[i] > 0.01},
+           "time": [int(x) for x in wide.index], "treated_series": [float(x) for x in y],
+           "synthetic_series": [float(x) for x in synthetic]}
+
+    if run_placebos:
+        ratios = []
+        for j in range(len(donors)):
+            others = np.delete(np.arange(len(donors)), j)
+            wj = _fit_weights(D[~post_flag][:, j], D[~post_flag][:, others])
+            gj = D[:, j] - D[:, others] @ wj
+            ratios.append(_rmspe(gj[post_flag]) / max(_rmspe(gj[~post_flag]), 1e-9))
+        real_ratio = post_rmspe / max(pre_rmspe, 1e-9)
+        out["post_pre_ratio"] = float(real_ratio)
+        out["placebo_p_value"] = float((1 + sum(r >= real_ratio for r in ratios)) / (1 + len(ratios)))
+    return out
+
+
+def compare_panel_methods(true_effect: float = -3.0, loading_spread: float = 1.0,
+                          n_donors: int = 30, n_treated: int = 1, n_pre: int = 20,
+                          n_post: int = 10, seed: int = 0) -> dict:
+    """Panel 'Method Arena': DiD vs synthetic control vs the known truth."""
+    df = simulate_panel(n_donors, n_treated, n_pre, n_post, true_effect, loading_spread, seed=seed)
+    did, sc = did_estimate(df), synthetic_control(df)
+    for r in (did, sc):
+        r["error_vs_truth"] = r["effect"] - true_effect
+    return {"true_effect": true_effect, "loading_spread": loading_spread,
+            "treatment_time": n_pre, "did": did, "synthetic_control": sc}
