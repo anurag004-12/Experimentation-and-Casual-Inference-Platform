@@ -16,6 +16,9 @@ from .causal import compare_methods
 
 from .causal import compare_methods, compare_panel_methods
 
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from .analyze import analyze_ab, load_csv, preview
+
 app = FastAPI(title="Experimentation Platform", version="0.1.0")
 
 
@@ -166,3 +169,43 @@ def causal_compare(body: CausalCompareInput):
 @app.post("/causal/panel-compare")
 def causal_panel_compare(body: PanelCompareInput):
     return compare_panel_methods(**body.model_dump())
+
+# ---------------------------------------------------------------- upload + analyze
+MAX_UPLOAD_BYTES = 50 * 1024 * 1024   # 50 MB; sample very large datasets first
+
+
+async def _read_upload(file: UploadFile):
+    content = await file.read(MAX_UPLOAD_BYTES + 1)
+    if len(content) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="File is over 50 MB. Please upload a sample of the rows.")
+    try:
+        return load_csv(content)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+
+@app.post("/analyze/preview")
+async def analyze_preview(file: UploadFile = File(...)):
+    """Upload a CSV and get its columns back, so a UI can offer sensible choices."""
+    return preview(await _read_upload(file))
+
+
+@app.post("/analyze/ab")
+async def analyze_ab_endpoint(
+    file: UploadFile = File(...),
+    group_col: str = Form(...),
+    metric_col: str = Form(...),
+    control_label: str | None = Form(None),
+    treatment_label: str | None = Form(None),
+    metric_type: str = Form("auto"),
+    pre_metric_col: str | None = Form(None),
+    expected_treat_share: float = Form(0.5),
+    alpha: float = Form(0.05),
+):
+    """Upload an A/B test CSV; get Experiment Doctor checks, results and a plain-English verdict."""
+    df = await _read_upload(file)
+    try:
+        return analyze_ab(df, group_col, metric_col, control_label or None, treatment_label or None,
+                          metric_type, pre_metric_col or None, expected_treat_share, alpha)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
