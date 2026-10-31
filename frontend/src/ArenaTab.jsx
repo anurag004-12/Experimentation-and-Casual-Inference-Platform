@@ -1,4 +1,5 @@
 import ObservationalCard from "./arena/ObservationalCard.jsx";
+import PanelCard from "./arena/PanelCard.jsx";
 import PeekingCard from "./arena/PeekingCard.jsx";
 
 export default function ArenaTab() {
@@ -10,6 +11,7 @@ export default function ArenaTab() {
       </p>
       <PeekingCard />
       <ObservationalCard />
+      <PanelCard />
     </div>
   );
 }

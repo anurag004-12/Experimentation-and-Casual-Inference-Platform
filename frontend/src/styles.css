@@ -34,3 +34,6 @@ nav button.active { background: #4f6df5; color: #fff; border-color: #4f6df5; }
 .takeaway { background: #eef4ff; border-left: 4px solid #4f6df5; padding: 10px 14px; border-radius: 6px; font-size: 0.95rem; }
 
 .check { flex-direction: row; align-items: center; gap: 8px; }
+
+.mini { border-radius: 10px; padding: 12px 14px; border: 2px solid; } .mini h4 { margin: 0 0 6px; } .mini p { margin: 4px 0; font-size: 0.92rem; }
+.mini.good { background: #ecf8f0; border-color: #1a9850; } .mini.bad { background: #fdecea; border-color: #d73027; }
