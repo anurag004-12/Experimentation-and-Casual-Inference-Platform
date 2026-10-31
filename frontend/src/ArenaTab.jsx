@@ -1,3 +1,4 @@
+import ObservationalCard from "./arena/ObservationalCard.jsx";
 import PeekingCard from "./arena/PeekingCard.jsx";
 
 export default function ArenaTab() {
@@ -8,6 +9,7 @@ export default function ArenaTab() {
         where they fail. Everything here runs on simulated data.
       </p>
       <PeekingCard />
+      <ObservationalCard />
     </div>
   );
 }

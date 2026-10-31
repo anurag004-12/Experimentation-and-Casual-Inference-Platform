@@ -32,3 +32,5 @@ nav button.active { background: #4f6df5; color: #fff; border-color: #4f6df5; }
 .slider { gap: 4px; } .slider input { width: 100%; }
 .intro { margin-top: 0; }
 .takeaway { background: #eef4ff; border-left: 4px solid #4f6df5; padding: 10px 14px; border-radius: 6px; font-size: 0.95rem; }
+
+.check { flex-direction: row; align-items: center; gap: 8px; }
