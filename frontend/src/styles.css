@@ -25,3 +25,10 @@ select, input[type="number"], input:not([type]) { padding: 8px; border: 1px soli
 
 .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
 .liftplot { width: 100%; height: auto; }
+
+nav { display: flex; gap: 8px; margin-bottom: 16px; }
+nav button { padding: 10px 16px; border: 1px solid #e3e8f0; background: #fff; border-radius: 8px; cursor: pointer; font-size: 0.95rem; }
+nav button.active { background: #4f6df5; color: #fff; border-color: #4f6df5; }
+.slider { gap: 4px; } .slider input { width: 100%; }
+.intro { margin-top: 0; }
+.takeaway { background: #eef4ff; border-left: 4px solid #4f6df5; padding: 10px 14px; border-radius: 6px; font-size: 0.95rem; }

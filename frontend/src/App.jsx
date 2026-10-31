@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import AnalyzeTab from "./AnalyzeTab.jsx";
+import ArenaTab from "./ArenaTab.jsx";
 import "./styles.css";
 
 export default function App() {
   const [status, setStatus] = useState("checking...");
+  const [tab, setTab] = useState("analyze");
 
   useEffect(() => {
     fetch("/api/health")
@@ -18,7 +20,23 @@ export default function App() {
       <p className="muted">
         Backend status: <strong>{status}</strong>
       </p>
-      <AnalyzeTab />
+
+      <nav>
+        <button className={tab === "analyze" ? "active" : ""} onClick={() => setTab("analyze")}>
+          Analyze my A/B test
+        </button>
+        <button className={tab === "arena" ? "active" : ""} onClick={() => setTab("arena")}>
+          Method arena
+        </button>
+      </nav>
+
+      {/* Both tabs stay loaded, so switching doesn't lose an uploaded file. */}
+      <div hidden={tab !== "analyze"}>
+        <AnalyzeTab />
+      </div>
+      <div hidden={tab !== "arena"}>
+        <ArenaTab />
+      </div>
     </div>
   );
 }

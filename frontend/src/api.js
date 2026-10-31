@@ -21,3 +21,12 @@ async function handle(res) {
 export function postForm(path, form) {
   return fetch(`${BASE}${path}`, { method: "POST", body: form }).then(handle);
 }
+
+// Send JSON (used by the simulation cards).
+export function postJson(path, body) {
+  return fetch(`${BASE}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }).then(handle);
+}
