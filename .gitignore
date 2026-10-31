@@ -1,29 +1,35 @@
-# Python
+# ---- Python ----
 __pycache__/
 *.py[cod]
+.pytest_cache/
 .venv/
 venv/
-.pytest_cache/
-.ipynb_checkpoints/
 *.egg-info/
+.ipynb_checkpoints/
 
-# Node / React
+# ---- Node / React ----
 node_modules/
 frontend/dist/
 frontend/build/
 
-# Secrets and env
+# ---- Secrets and local settings ----
 .env
 .env.*
 
-# Data and experiment artifacts (keep raw datasets out of git)
+# ---- Data: never commit datasets or generated files ----
 data/
+backend/data/
+backend/sample_data/
 *.csv
 *.parquet
+cookie_cats*
 mlruns/
 
-# OS / editor
-.DS_Store
-Thumbs.db
+# ---- Logs ----
+*.log
+
+# ---- Editor / OS ----
 .vscode/
 .idea/
+.DS_Store
+Thumbs.db
