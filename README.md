@@ -28,6 +28,7 @@ uncertainty.
 | Can I peek at results early? | `sequential.py` | Peeking simulation and an always-valid (mSPRT) stopping rule |
 | What if nobody randomized? | `causal.py` | Propensity matching, DoWhy, EconML, difference-in-differences with a pre-trend check, synthetic control with placebo tests |
 | Can I use it on my own data? | `analyze.py` + React app | Upload a CSV, pick the columns, get a verdict with warnings and charts |
+| Can I explore the methods myself? | React "Method arena" tab | Sliders for peeking, self-selection with a hidden driver, and policy evaluation |
 
 ## Results
 
@@ -113,8 +114,8 @@ Design details and the API list: [docs/architecture.md](docs/architecture.md).
 
 ## Known limitations
 
-- Upload analysis covers **randomized A/B tests**. The causal methods currently run on simulated
-  data (via the API) rather than uploaded files.
+- Upload analysis covers **randomized A/B tests**. The causal methods and the sequential test run
+  on simulated data in the **Method arena** tab (and via the API), not on uploaded files.
 - The always-valid sequential test is safe but conservative (see the power numbers above).
 - The difference-in-differences pre-trend check needs at least 3 pre-policy periods.
 - Averages of heavy-tailed metrics are fragile. The tool flags this but does not yet offer
